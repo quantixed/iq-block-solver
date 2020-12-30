@@ -1,13 +1,30 @@
 #pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
+#pragma DefaultTab={3,20,4}		// Set default tab width in Igor Pro 9 and later
 
+////////////////////////////////////////////////////////////////////////
+// Menu items
+////////////////////////////////////////////////////////////////////////
+Menu "Macros"
+	"IQ Puzzle Solver", PuzzleSolver()
+End
+
+////////////////////////////////////////////////////////////////////////
+// Master functions and wrappers
+////////////////////////////////////////////////////////////////////////
 Function PuzzleSolver()
+	CleanSlate()
 	MakeTheBlocks()
 	GenerateOrientations()
 	AllTheCombinations()
 	RunTheSolver()
+	DisplaySolutions()
+	MakeTheLayouts("sol_", 4, 3, saveIt = 0)
 End
 
+////////////////////////////////////////////////////////////////////////
+// Main functions
+////////////////////////////////////////////////////////////////////////
 Function MakeTheBlocks()
 	// block 0
 	Make/O/N=(2,4)/I block_0 = 1
@@ -212,6 +229,8 @@ Function RunTheSolver()
 			counter += 1
 			if(SolveIt(wr) == 1)
 				solutions += 1
+				WAVE/Z theCMat
+				Duplicate/O theCMat, $("solution_" + num2str(solutions))
 				print "solution found", solutions, ", iterations", counter
 			endif
 		endfor
@@ -241,6 +260,9 @@ STATIC Function SolveIt(wrw)
 	// we have an 8 x 8 matrix
 	Make/O/N=(8,8)/I theMat=0, tempMat=0
 	Make/O/N=(8)/FREE waveCheckW = 0 // this tells us if the supercombination is done
+	// we also need to store the solution. The tempMat/theMat pair use 1 or 0 to mark filled positions
+	// we'll use integer representation of the blocks (i + 1) here
+	Make/O/N=(8,8)/I theCMat=0, tempCMat=0
 	Variable ww, hh
 	
 	Variable i,j,k
@@ -265,9 +287,15 @@ STATIC Function SolveIt(wrw)
 				// set tempMat to be the same as the last correct matrix
 				tempMat[][] = theMat[p][q]
 				tempMat[j, j + hh - 1][k, k + ww - 1] = theMat[p][q] + w[p - j][q - k]
+				// set tempCMat to be the same as the last correct colour matrix
+				tempCMat[][] = theCMat[p][q]
+				tempCMat[j, j + hh - 1][k, k + ww - 1] += w[p - j][q - k] * (i + 1)
 				if(TestIt(tempMat) == 0)
 					// update theMat to be the same as tempMat if no clashes found
 					theMat[][] = tempMat[p][q]
+					// update theMat to be the same as tempMat if no clashes found
+					theCMat[][] = tempCMat[p][q]
+					// mark block as done
 					waveCheckW[i] = 1
 					break
 				else
@@ -287,12 +315,176 @@ STATIC Function SolveIt(wrw)
 	endif
 End
 
-Function TestIt(w)
+STATIC Function TestIt(w)
 	Wave w
 	Findvalue/I=2 w
 	if(V_Value >= 0)
 		return 1
 	else
 		return 0
+	endif
+End
+
+STATIC Function MakeColorWave()
+	Make/O/N=(9,3) colorWave
+	colorWave[][0]= {0,34952,65535,0,53713,0,14135,18761,55255}
+	colorWave[][1]= {0,11308,35980,23130,19789,31868,43433,7967,55512}
+	colorWave[][2]= {0,39064,24929,50886,34181,41120,34181,39578,23130}
+End
+
+Function DisplaySolutions()
+	MakeColorWave()
+	WAVE/Z colorWave
+	String wList = WaveList("solution*",";","")
+	String wName, plotName
+	Variable nImages = ItemsInList(wList)
+	
+	Variable i
+	
+	for(i = 0; i < nImages; i += 1)
+		wName = StringFromList(i,wList)
+		Wave w = $wName
+		plotName = "sol_" + num2str(i)
+		KillWindow/Z $plotName
+		NewImage/HIDE=0/N=$plotName/S=0 w
+		ModifyImage/W=$plotname $wName cindex=colorWave,minRGB=(0,0,0),maxRGB=(0,0,0)
+	endfor
+End
+
+////////////////////////////////////////////////////////////////////////
+// Utility functions
+////////////////////////////////////////////////////////////////////////
+Function CleanSlate()
+	String fullList = WinList("*", ";","WIN:71")
+	Variable allItems = ItemsInList(fullList)
+	String name
+	Variable i
+ 
+	for(i = 0; i < allItems; i += 1)
+		name = StringFromList(i, fullList)
+		KillWindow/Z $name		
+	endfor
+	
+	KillDataFolder/Z root:data:
+		
+	// Kill waves in root
+	KillWaves/A/Z
+	// Look for data folders and kill them
+	DFREF dfr = GetDataFolderDFR()
+	allItems = CountObjectsDFR(dfr, 4)
+	for(i = 0; i < allItems; i += 1)
+		name = GetIndexedObjNameDFR(dfr, 4, i)
+		KillDataFolder $name		
+	endfor
+End
+
+STATIC Function KillTheseWaves(wList)
+	String wList
+	Variable nWaves = ItemsInList(wList)
+	String wName
+	
+	Variable i
+	
+	for(i = 0; i < nWaves; i += 1)
+		wName = StringFromList(i, wList)
+		Wave w0 = $wName
+		KillWaves/Z w0
+	endfor
+End
+
+STATIC Function MakeTheLayouts(prefix,nRow,nCol,[iter, filtVar, rev, alphaSort, saveIt, orient])
+	String prefix
+	Variable nRow, nCol
+	Variable iter	// this is if we are doing multiple iterations of the same layout
+	Variable filtVar // this is the object we want to filter for
+	Variable rev // optional - reverse plot order
+	Variable alphaSort // optional - do alphanumeric sort
+	Variable saveIt
+	Variable orient //optional 1 = landscape, 0 or default is portrait
+	if(ParamIsDefault(filtVar) == 0)
+		String filtStr = prefix + "_*_" + num2str(filtVar) + "_*"	// this is if we want to filter for this string from the prefix
+	endif
+	
+	String layoutName = "all"+prefix+"Layout"
+	DoWindow/K $layoutName
+	NewLayout/N=$layoutName
+	String allList = WinList(prefix+"*",";","WIN:1") // edited this line from previous version
+	String modList = allList
+	Variable nWindows = ItemsInList(allList)
+	String plotName
+	
+	Variable i
+	
+	if(ParamIsDefault(filtVar) == 0)
+		modList = "" // reinitialise
+		for(i = 0; i < nWindows; i += 1)
+			plotName = StringFromList(i,allList)
+			if(stringmatch(plotName,filtStr) == 1)
+				modList += plotName + ";"
+			endif
+		endfor
+	endif
+	
+	if(ParamIsDefault(alphaSort) == 0)
+		if(alphaSort == 1)
+			modList = SortList(modList)
+		endif
+	endif
+	
+	nWindows = ItemsInList(modList)
+	Variable PlotsPerPage = nRow * nCol
+	String exString = "Tile/A=(" + num2str(ceil(PlotsPerPage/nCol)) + ","+num2str(nCol)+")"
+	
+	Variable pgNum=1
+	
+	for(i = 0; i < nWindows; i += 1)
+		if(ParamIsDefault(rev) == 0)
+			if(rev == 1)
+				plotName = StringFromList(nWindows - 1 - i,modList)
+			else
+				plotName = StringFromList(i,modList)
+			endif
+		else
+			plotName = StringFromList(i,modList)
+		endif
+		AppendLayoutObject/W=$layoutName/PAGE=(pgnum) graph $plotName
+		if(mod((i + 1),PlotsPerPage) == 0 || i == (nWindows -1)) // if page is full or it's the last plot
+			if(ParamIsDefault(orient) == 0)
+				if(orient == 1)
+					LayoutPageAction size(-1)=(842,595), margins(-1)=(18, 18, 18, 18)
+				endif
+			else
+				// default is for portrait
+				LayoutPageAction/W=$layoutName size(-1)=(595, 842), margins(-1)=(18, 18, 18, 18)
+			endif
+			ModifyLayout/W=$layoutName units=0
+			ModifyLayout/W=$layoutName frame=0,trans=1
+			Execute /Q exString
+			if (i != nWindows -1)
+				LayoutPageAction/W=$layoutName appendpage
+				pgNum += 1
+				LayoutPageAction/W=$layoutName page=(pgNum)
+			endif
+		endif
+	endfor
+	
+	String fileName
+	// if anthing is passed here we save an iteration, otherwise usual name
+	if(!ParamIsDefault(iter))
+		fileName = layoutName + num2str(iter) + ".pdf"
+	else
+		fileName = layoutName + ".pdf"
+	endif
+	// if anthing is passed here we save the filtered version
+	if(ParamIsDefault(filtVar) == 0)
+		fileName = ReplaceString(".pdf",fileName, "_" + num2str(filtVar) + ".pdf")
+	endif
+	if(ParamIsDefault(saveIt) == 0)
+		if(saveIt == 1)
+			SavePICT/O/WIN=$layoutName/PGR=(1,-1)/E=-2/W=(0,0,0,0) as fileName
+		endif
+	else
+		// default is to save
+		SavePICT/O/WIN=$layoutName/PGR=(1,-1)/E=-2/W=(0,0,0,0) as fileName
 	endif
 End
