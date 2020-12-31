@@ -131,7 +131,7 @@ Function GenerateOrientations()
 	return 0
 End
 
-Function MatrixCheck(m0,m1)
+STATIC Function MatrixCheck(m0,m1)
 	Wave m0,m1
 	
 	// are dimensions the same
@@ -218,21 +218,29 @@ Function RunTheSolver()
 	// specified in allPermMat. This is 5.28482e+09 different supercombinations
 	Make/O/FREE/T/N=8 tempWNameW
 	String wList
-	Variable solutions = 0, counter = 0
+	Variable solutions = 0, counter = 0, skipped = 0
+	Print "Starting search...", time()
+	
 	Variable i,j
 	
 	for(i = 0; i < nPerms; i += 1)
 		for(j = 0; j < nOPerms; j += 1)
 			tempWNameW[] = permutationW[j][allPermMat[p][i]]
+			if(CheckImpossible(tempWNameW[0],0) == 1 || CheckImpossible(tempWNameW[7],1) == 1)
+				skipped += 1
+				continue
+			endif
 			wfprintf wList, "%s;", tempWNameW
 			Wave/WAVE wr = ListToWaveRefWave(wList,0)
-			counter += 1
 			if(SolveIt(wr) == 1)
 				solutions += 1
 				WAVE/Z theCMat
 				Duplicate/O theCMat, $("solution_" + num2str(solutions))
-				print "solution found", solutions, ", iterations", counter
+				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, time()
+				Print "Key:", wList
+				solutions += 1
 			endif
+			counter += 1
 		endfor
 	endfor
 End
@@ -255,6 +263,19 @@ STATIC Function AllPermutations(num)
 	allPermMat[][0] = p
 end
 
+STATIC Function CheckImpossible(wName,firstLast)
+	String wName
+	Variable firstLast
+	
+	String impossibleFirsts = "orient_1_2;orient_1_3;orient_2_1;orient_2_4;orient_3_2;orient_3_3;orient_4_1;orient_4_6;orient_5_2;orient_5_3;orient_6_1;orient_6_6;orient_7_3;"
+	String impossibleLasts = "orient_1_0;orient_1_1;orient_2_1;orient_2_4;orient_3_0;orient_3_1;orient_4_3;orient_4_4;orient_5_0;orient_5_1;orient_6_3;orient_6_4;orient_7_1;"
+	if(firstLast == 0 && WhichListItem(wName,impossibleFirsts) >= 0)
+		return 1
+	elseif(firstLast == 1 && WhichListItem(wName,impossibleLasts) >= 0)
+		return 0
+	endif
+End
+
 STATIC Function SolveIt(wrw)
 	Wave/WAVE wrw
 	// we have an 8 x 8 matrix
@@ -263,7 +284,8 @@ STATIC Function SolveIt(wrw)
 	// we also need to store the solution. The tempMat/theMat pair use 1 or 0 to mark filled positions
 	// we'll use integer representation of the blocks (i + 1) here
 	Make/O/N=(8,8)/I theCMat=0, tempCMat=0
-	Variable ww, hh
+	Variable ww, hh, obj
+	String wName
 	
 	Variable i,j,k
 	
@@ -271,6 +293,8 @@ STATIC Function SolveIt(wrw)
 		Wave w = wrw[i]
 		ww = DimSize(w,1)
 		hh = DimSize(w,0)
+		wName = NameOfWave(w)
+		obj = str2num(wName[7])
 		
 		for(j = 0; j < 7; j += 1) // row, limit is 7 to save a loop
 			if(waveCheckW[i] == 1)
@@ -289,7 +313,7 @@ STATIC Function SolveIt(wrw)
 				tempMat[j, j + hh - 1][k, k + ww - 1] = theMat[p][q] + w[p - j][q - k]
 				// set tempCMat to be the same as the last correct colour matrix
 				tempCMat[][] = theCMat[p][q]
-				tempCMat[j, j + hh - 1][k, k + ww - 1] += w[p - j][q - k] * (i + 1)
+				tempCMat[j, j + hh - 1][k, k + ww - 1] += w[p - j][q - k] * (obj + 1)
 				if(TestIt(tempMat) == 0)
 					// update theMat to be the same as tempMat if no clashes found
 					theMat[][] = tempMat[p][q]
