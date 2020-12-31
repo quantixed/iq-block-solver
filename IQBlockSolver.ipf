@@ -223,9 +223,9 @@ Function RunTheSolver()
 	
 	Variable i,j
 	
-	for(i = 0; i < nPerms; i += 1)
-		for(j = 0; j < nOPerms; j += 1)
-			tempWNameW[] = permutationW[j][allPermMat[p][i]]
+	for(i = 0; i < nOPerms; i += 1)
+		for(j = 0; j < nPerms; j += 1)
+			tempWNameW[] = permutationW[i][allPermMat[p][j]]
 			if(CheckImpossible(tempWNameW[0],0) == 1 || CheckImpossible(tempWNameW[7],1) == 1)
 				skipped += 1
 				continue
@@ -233,7 +233,6 @@ Function RunTheSolver()
 			wfprintf wList, "%s;", tempWNameW
 			Wave/WAVE wr = ListToWaveRefWave(wList,0)
 			if(SolveIt(wr) == 1)
-				solutions += 1
 				WAVE/Z theCMat
 				Duplicate/O theCMat, $("solution_" + num2str(solutions))
 				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, time()
