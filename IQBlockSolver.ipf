@@ -218,12 +218,13 @@ Function RunTheSolver()
 	// specified in allPermMat. This is 5.28482e+09 different supercombinations
 	Make/O/FREE/T/N=8 tempWNameW
 	String wList
-	Variable solutions = 0, counter = 0, skipped = 0
+	Variable solutions = 0, counter = 0, skipped = 0, answerFound = 0
 	Print "Starting search...", time()
 	
 	Variable i,j
 	
 	for(i = 0; i < nOPerms; i += 1)
+		answerFound = 0
 		for(j = 0; j < nPerms; j += 1)
 			tempWNameW[] = permutationW[i][allPermMat[p][j]]
 			if(CheckImpossible(tempWNameW[0],0) == 1 || CheckImpossible(tempWNameW[7],1) == 1)
@@ -238,8 +239,13 @@ Function RunTheSolver()
 				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, time()
 				Print "Key:", wList
 				solutions += 1
+				answerFound = 1
 			endif
 			counter += 1
+			if(answerFound == 1)
+				i = ceil(i / 5039) * 5039 // next iteration will be a multiple of 5040
+				break
+			endif
 		endfor
 	endfor
 End
