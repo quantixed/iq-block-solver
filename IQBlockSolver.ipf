@@ -242,8 +242,11 @@ Function RunTheSolver()
 				answerFound = 1
 			endif
 			counter += 1
+			if(mod(counter,100000) == 0)
+				Print counter, "iterations...", skipped, "skipped. i=",i,"j=",j
+			endif
 			if(answerFound == 1)
-				i = ceil(i / 5039) * 5039 // next iteration will be a multiple of 5040
+				j = ceil(j / 5039) * 5039 // next iteration will be a multiple of 5040
 				break
 			endif
 		endfor
@@ -277,6 +280,8 @@ STATIC Function CheckImpossible(wName,firstLast)
 	if(firstLast == 0 && WhichListItem(wName,impossibleFirsts) >= 0)
 		return 1
 	elseif(firstLast == 1 && WhichListItem(wName,impossibleLasts) >= 0)
+		return 1
+	else
 		return 0
 	endif
 End
