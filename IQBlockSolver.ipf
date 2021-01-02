@@ -218,14 +218,14 @@ Function RunTheSolver()
 	// specified in allPermMat. This is 5.28482e+09 different supercombinations
 	Make/O/FREE/T/N=8 tempWNameW
 	String wList
-	Variable solutions = 0, counter = 0, skipped = 0, answerFound = 0
+	Variable solutions = 0, counter = 0, skipped = 0, solutionFound = 0
 	Print "Starting search...", time()
 	
 	Variable i,j
 	
 	for(i = 0; i < nOPerms; i += 1)
-		answerFound = 0
-		for(j = 0; j < nPerms; j += 1)
+		solutionFound = 0
+		for(j = solutions * 5040; j < nPerms; j += 1)
 			tempWNameW[] = permutationW[i][allPermMat[p][j]]
 			if(CheckImpossible(tempWNameW[0],0) == 1 || CheckImpossible(tempWNameW[7],1) == 1)
 				skipped += 1
@@ -239,14 +239,13 @@ Function RunTheSolver()
 				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, time()
 				Print "Key:", wList
 				solutions += 1
-				answerFound = 1
+				solutionFound = 1
 			endif
 			counter += 1
 			if(mod(counter,100000) == 0)
 				Print counter, "iterations...", skipped, "skipped. i=",i,"j=",j
 			endif
-			if(answerFound == 1)
-				j = ceil(j / 5039) * 5039 // next iteration will be a multiple of 5040
+			if(solutionFound == 1)
 				break
 			endif
 		endfor
@@ -305,13 +304,18 @@ STATIC Function SolveIt(wrw)
 		hh = DimSize(w,0)
 		wName = NameOfWave(w)
 		obj = str2num(wName[7])
+		ImageStats theMat // this finds the location of 1st 0 in the matrix
+		// here we could do
+		// ImageSeedFill min=0,max=0,seedP=7,seedQ=7,target=100,srcWave=theMat
+		// to test for "holes" and break if
+		// floor(sum(theMat) / 100) < ((8 - i) * 8)
 		
-		for(j = 0; j < 7; j += 1) // row, limit is 7 to save a loop
+		for(j = V_minRowLoc; j < 7; j += 1) // row, limit is 7 to save a loop
 			if(waveCheckW[i] == 1)
 				break
 			endif
 			
-			for(k = 0; k < 7; k += 1) // column, limit is 7 to save a loop
+			for(k = V_minColLoc; k < 7; k += 1) // column, limit is 7 to save a loop
 				if(theMat[j][k] != 0) // if the space is already filled
 					continue
 				endif
