@@ -15,11 +15,14 @@ End
 Function PuzzleSolver()
 	CleanSlate()
 	MakeTheBlocks()
-	GenerateOrientations()
+	GenerateOrientations("block")
 	AllTheCombinations()
 	RunTheSolver()
-	DisplaySolutions()
-	MakeTheLayouts("sol_", 4, 3, saveIt = 0)
+	DisplaySolutions("solution")
+	MakeTheLayouts("sol_", 5, 3, saveIt = 0)
+	GenerateOrientations("solution")
+	DisplaySolutions("final")
+	MakeTheLayouts("fin_", 6, 4, saveIt = 0)
 End
 
 ////////////////////////////////////////////////////////////////////////
@@ -56,17 +59,28 @@ Function MakeTheBlocks()
 	return 0
 End
 
-Function GenerateOrientations()
+Function GenerateOrientations(prefix)
+	String prefix
+	
 	String wName,newName
 
 	Variable i,j,k
 	
 	for(i = 0; i < 8; i += 1)
-		wName = "block_" + num2str(i)
+		wName = prefix + "_" + num2str(i)
 		Wave w = $wName
+		if(!WaveExists(w))
+			continue
+		endif
 		
 		for(j = 0; j < 4; j += 1)
-			newName = "orient_" + num2str(i) + "_" + num2str(j)
+			if(cmpstr(prefix,"block") == 0)
+				newName = "orient_" + num2str(i) + "_" + num2str(j)
+			elseif(cmpstr(prefix,"solution") == 0)
+				newName = "final_" + num2str(i) + "_" + num2str(j)
+			else
+				return -1
+			endif
 			Duplicate/O w, $newName
 			if(j == 1)
 				ImageRotate/C/O $newName
@@ -79,7 +93,13 @@ Function GenerateOrientations()
 		ImageRotate/O/H w // flip it
 		
 		for(j = 0; j < 4; j += 1)
-			newName = "orient_" + num2str(i) + "_" + num2str(j+4)
+			if(cmpstr(prefix,"block") == 0)
+				newName = "orient_" + num2str(i) + "_" + num2str(j+4)
+			elseif(cmpstr(prefix,"solution") == 0)
+				newName = "final_" + num2str(i) + "_" + num2str(j+4)
+			else
+				return -1
+			endif
 			Duplicate/O w, $newName
 			if(j == 1)
 				ImageRotate/C/O $newName
@@ -90,7 +110,7 @@ Function GenerateOrientations()
 			endif
 		endfor
 	endfor
-	// now get rid of identical shapes
+	// now get rid of identical shapes (blocks only, not solutions)
 	String wList, wNameJ, wNameK
 	Variable nWaves
 	
@@ -310,12 +330,12 @@ STATIC Function SolveIt(wrw)
 		// to test for "holes" and break if
 		// floor(sum(theMat) / 100) < ((8 - i) * 8)
 		
-		for(j = V_minRowLoc; j < 7; j += 1) // row, limit is 7 to save a loop
+		for(j = V_minRowLoc; j < 7; j += 1) // row, limit is 6 to save a loop
 			if(waveCheckW[i] == 1)
 				break
 			endif
 			
-			for(k = V_minColLoc; k < 7; k += 1) // column, limit is 7 to save a loop
+			for(k = V_minColLoc; k < 7; k += 1) // column, limit is 6 to save a loop
 				if(theMat[j][k] != 0) // if the space is already filled
 					continue
 				endif
@@ -370,10 +390,14 @@ STATIC Function MakeColorWave()
 	colorWave[][2]= {0,39064,24929,50886,34181,41120,34181,39578,23130}
 End
 
-Function DisplaySolutions()
-	MakeColorWave()
+Function DisplaySolutions(prefix)
+	String prefix
+	
 	WAVE/Z colorWave
-	String wList = WaveList("solution*",";","")
+	if(!WaveExists(colorWave))
+		MakeColorWave()
+	endif
+	String wList = WaveList(prefix + "*",";","")
 	String wName, plotName
 	Variable nImages = ItemsInList(wList)
 	
@@ -382,10 +406,11 @@ Function DisplaySolutions()
 	for(i = 0; i < nImages; i += 1)
 		wName = StringFromList(i,wList)
 		Wave w = $wName
-		plotName = "sol_" + num2str(i)
+		plotName = prefix[0,2] + "_" + num2str(i)
 		KillWindow/Z $plotName
-		NewImage/HIDE=0/N=$plotName/S=0 w
+		NewImage/HIDE=1/N=$plotName/S=0 w
 		ModifyImage/W=$plotname $wName cindex=colorWave,minRGB=(0,0,0),maxRGB=(0,0,0)
+		ModifyGraph/W=$plotName width={Aspect,1}
 	endfor
 End
 
