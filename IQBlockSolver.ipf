@@ -17,6 +17,7 @@ Function PuzzleSolver()
 	MakeTheBlocks()
 	GenerateOrientations("block")
 	AllTheCombinations()
+	CalculateOffset()
 	RunTheSolver()
 	DisplaySolutions("solution")
 	MakeTheLayouts("sol_", 5, 3, saveIt = 0)
@@ -228,42 +229,78 @@ Function AllTheCombinations()
 	endfor
 End
 
+Function CalculateOffset()
+	String wList = WaveList("orient_*",";","")
+	Variable nWaves = ItemsInList(wList)
+	Make/O/N=(nWaves)/T masterOffsetNameW
+	Make/O/N=(nWaves) masterOffsetW
+	String wName
+	WAVE/Z/T permutationW
+	Variable nRow = DimSize(permutationW,0)
+	Variable nCol = DimSize(permutationW,1)
+	Make/O/N=(nRow,nCol) permOffset
+	
+	Variable i
+	
+	for(i = 0; i < nWaves; i += 1)
+		wName = StringFromList(i, wList)
+		masterOffsetNameW[i] = wName
+		Wave w = $wName
+		ImageStats/Q w
+		masterOffsetW[i] = V_maxRowLoc
+		permOffset[][] = (cmpstr(permutationW[p][q],wName) == 0) ? V_maxRowLoc : permOffset[p][q]
+	endfor
+
+End
+
+Function TestThisOut()
+	Make/O/N=(8)/T myWNameW = {"orient_1_0","orient_2_4","orient_7_2","orient_0_0","orient_3_0","orient_6_4","orient_5_2","orient_4_2"}
+	String wList = ""
+	wfprintf wList, "%s;", myWNameW
+	Wave/WAVE wr = ListToWaveRefWave(wList,0)
+	Make/O/N=(8) testOffSetW = {0,2,0,0,0,0,2,0}
+	Print solveit(wr,testOffsetW)
+End
+
 Function RunTheSolver()
 	AllPermutations(8)
-	WAVE/Z allPermMat
+	WAVE/Z allPermMat, permOffset
 	Variable nPerms = DimSize(allPermMat,1) // this is what order we will take the blocks in
 	WAVE/Z/T permutationW
 	Variable nOPerms = DimSize(permutationW,0) // this is the possible orientations of the blocks that we take
 	// for each row in permutationW, we can try to place them in the grid in the order
 	// specified in allPermMat. This is 5.28482e+09 different supercombinations
 	Make/O/FREE/T/N=8 tempWNameW
+	Make/O/FREE/N=8 offsetW
 	String wList
 	Variable solutions = 0, counter = 0, skipped = 0, solutionFound = 0
-	Print "Starting search...", time()
+	Print "Starting search...", date(), time()
 	
 	Variable i,j
 	
 	for(i = 0; i < nOPerms; i += 1)
 		solutionFound = 0
-		for(j = solutions * 5040; j < nPerms; j += 1)
+		//for(j = solutions * 5040; j < nPerms; j += 1)
+		for(j = 0; j < nPerms; j += 1)
 			tempWNameW[] = permutationW[i][allPermMat[p][j]]
+			offsetW[] = permOffset[i][allPermMat[p][j]]
 			if(CheckImpossible(tempWNameW[0],0) == 1 || CheckImpossible(tempWNameW[7],1) == 1)
 				skipped += 1
 				continue
 			endif
 			wfprintf wList, "%s;", tempWNameW
 			Wave/WAVE wr = ListToWaveRefWave(wList,0)
-			if(SolveIt(wr) == 1)
+			if(SolveIt(wr,offsetW) == 1)
 				WAVE/Z theCMat
 				Duplicate/O theCMat, $("solution_" + num2str(solutions))
-				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, time()
+				Print "Solution:", solutions, "Iterations:", counter, "Skipped:", skipped, date(), time()
 				Print "Key:", wList
 				solutions += 1
 				solutionFound = 1
 			endif
 			counter += 1
 			if(mod(counter,100000) == 0)
-				Print counter, "iterations...", skipped, "skipped. i=",i,"j=",j
+				Print counter, "iterations...", skipped, "skipped. i=",i,"j=",j, "Total solutions:", solutions
 			endif
 			if(solutionFound == 1)
 				break
@@ -305,15 +342,16 @@ STATIC Function CheckImpossible(wName,firstLast)
 	endif
 End
 
-STATIC Function SolveIt(wrw)
+STATIC Function SolveIt(wrw,offsetW)
 	Wave/WAVE wrw
+	Wave offsetW
 	// we have an 8 x 8 matrix
 	Make/O/N=(8,8)/I theMat=0, tempMat=0
 	Make/O/N=(8)/FREE waveCheckW = 0 // this tells us if the supercombination is done
 	// we also need to store the solution. The tempMat/theMat pair use 1 or 0 to mark filled positions
 	// we'll use integer representation of the blocks (i + 1) here
 	Make/O/N=(8,8)/I theCMat=0, tempCMat=0
-	Variable ww, hh, obj
+	Variable ww, hh, obj, offset, blank1D, jp, kp
 	String wName
 	
 	Variable i,j,k
@@ -324,42 +362,45 @@ STATIC Function SolveIt(wrw)
 		hh = DimSize(w,0)
 		wName = NameOfWave(w)
 		obj = str2num(wName[7])
+		offset = offsetW[i]
 		ImageStats theMat // this finds the location of 1st 0 in the matrix
 		// here we could do
 		// ImageSeedFill min=0,max=0,seedP=7,seedQ=7,target=100,srcWave=theMat
 		// to test for "holes" and break if
 		// floor(sum(theMat) / 100) < ((8 - i) * 8)
+		blank1D = (V_minRowLoc * 8) + V_minColLoc
 		
-		for(j = V_minRowLoc; j < 7; j += 1) // row, limit is 6 to save a loop
+		for(j = blank1D; j < 56; j += 1) // iterate in 1D
 			if(waveCheckW[i] == 1)
 				break
 			endif
-			
-			for(k = V_minColLoc; k < 7; k += 1) // column, limit is 6 to save a loop
-				if(theMat[j][k] != 0) // if the space is already filled
-					continue
-				endif
-				if(j + hh - 1 > 7 || k + ww - 1 > 7) // if out of bounds go to next
-					break
-				endif
-				// set tempMat to be the same as the last correct matrix
-				tempMat[][] = theMat[p][q]
-				tempMat[j, j + hh - 1][k, k + ww - 1] = theMat[p][q] + w[p - j][q - k]
-				// set tempCMat to be the same as the last correct colour matrix
-				tempCMat[][] = theCMat[p][q]
-				tempCMat[j, j + hh - 1][k, k + ww - 1] += w[p - j][q - k] * (obj + 1)
-				if(TestIt(tempMat) == 0)
-					// update theMat to be the same as tempMat if no clashes found
-					theMat[][] = tempMat[p][q]
-					// update theMat to be the same as tempMat if no clashes found
-					theCMat[][] = tempCMat[p][q]
-					// mark block as done
-					waveCheckW[i] = 1
-					break
-				else
-					continue
-				endif
-			endfor
+			jp = floor(j / 8)
+			kp = mod(j, 8)
+			if(theMat[jp][kp] != 0) // if the space is already filled
+				continue
+			endif
+			if(jp - offset + hh - 1 > 7 || kp + ww - 1 > 7) // if out of bounds go to next
+				break
+			elseif(jp - offset < 0)
+				break
+			endif
+			// set tempMat to be the same as the last correct matrix
+			tempMat[][] = theMat[p][q]
+			tempMat[jp - offset, jp - offset + hh - 1][kp, kp + ww - 1] = theMat[p][q] + w[p - (jp - offset)][q - kp]
+			// set tempCMat to be the same as the last correct colour matrix
+			tempCMat[][] = theCMat[p][q]
+			tempCMat[jp - offset, jp - offset + hh - 1][kp, kp + ww - 1] += w[p - (jp - offset)][q - kp] * (obj + 1)
+			if(TestIt(tempMat) == 0)
+				// update theMat to be the same as tempMat if no clashes found
+				theMat[][] = tempMat[p][q]
+				// update theMat to be the same as tempMat if no clashes found
+				theCMat[][] = tempCMat[p][q]
+				// mark block as done
+				waveCheckW[i] = 1
+				break
+			else
+				continue
+			endif
 		endfor
 		if(waveCheckW[i] == 0) // a block failed to be placed
 			return 0
