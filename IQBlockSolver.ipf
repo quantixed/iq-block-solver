@@ -63,11 +63,22 @@ End
 Function GenerateOrientations(prefix)
 	String prefix
 	
-	String wName,newName
+	Variable loopMax
+	String wList
+	if(cmpstr(prefix,"block") == 0)
+		loopMax = 8
+	elseif(cmpstr(prefix,"solution") == 0)
+		wList = WaveList("solution*",";","")
+		loopMax = ItemsInList(wList)
+	else
+		return -1
+	endif
+	
+	String wName, newName
 
 	Variable i,j,k
 	
-	for(i = 0; i < 8; i += 1)
+	for(i = 0; i < loopMax; i += 1)
 		wName = prefix + "_" + num2str(i)
 		Wave w = $wName
 		if(!WaveExists(w))
@@ -111,12 +122,23 @@ Function GenerateOrientations(prefix)
 			endif
 		endfor
 	endfor
-	// now get rid of identical shapes (blocks only, not solutions)
-	String wList, wNameJ, wNameK
+	// now get rid of identical shapes (blocks and solutions)
+	String wNameJ, wNameK
 	Variable nWaves
 	
-	for(i = 0; i < 8; i += 1)
-		wList = WaveList("orient_" + num2str(i) + "_*",";","")
+	if(cmpstr(prefix,"solution") == 0)
+		loopMax = 1
+	endif
+	
+	for(i = 0; i < loopMax; i += 1)
+		if(cmpstr(prefix,"block") == 0)
+			wList = WaveList("orient_" + num2str(i) + "_*",";","")
+		elseif(cmpstr(prefix,"solution") == 0)
+			wList = WaveList("final_*",";","")
+		else
+			return -1
+		endif
+		
 		nWaves = ItemsInList(wList)
 		Wave/T tw = ListToTextWave(wList, ";")
 		Make/O/FREE/N=(nWaves) delWave=0 // 0 means keep, 1 means delete
@@ -437,6 +459,7 @@ Function DisplaySolutions(prefix)
 	WAVE/Z colorWave
 	if(!WaveExists(colorWave))
 		MakeColorWave()
+		Wave/Z colorWave
 	endif
 	String wList = WaveList(prefix + "*",";","")
 	String wName, plotName
