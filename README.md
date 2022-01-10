@@ -15,11 +15,10 @@ The puzzle says there are more than 40 solutions.
 
 ## Solutions 
 
-The solver found 64 unique solutions.
+The solver found 48 unique solutions.
 
 ![img](img/allfin_Layout0.png?raw=true "image")
 
 ![img](img/allfin_Layout1.png?raw=true "image")
 
-![img](img/allfin_Layout2.png?raw=true "image")
 
